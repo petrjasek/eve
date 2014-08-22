@@ -370,9 +370,11 @@ def build_response_document(
 
     # hateoas links
     if config.DOMAIN[resource]['hateoas'] and config.ID_FIELD in document:
-        document[config.LINKS] = {'self':
-                                  document_link(resource,
-                                                document[config.ID_FIELD])}
+        self_dict = {'self': document_link(resource, document[config.ID_FIELD])}
+        if config.LINKS not in document: 
+            document[config.LINKS] = self_dict
+        elif 'self' not in document[config.LINKS]:
+            document[config.LINKS].update(self_dict) 
 
     # add version numbers
     resolve_document_version(document, resource, 'GET', latest_doc)
