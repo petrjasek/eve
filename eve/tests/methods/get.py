@@ -6,7 +6,7 @@ from bson import ObjectId
 from eve.tests import TestBase
 from eve.tests.utils import DummyEvent
 from eve.tests.test_settings import MONGO_DBNAME
-from eve.utils import date_to_str, str_to_date
+from eve.utils import str_to_date, date_to_rfc1123
 
 
 class TestGet(TestBase):
@@ -520,6 +520,20 @@ class TestGet(TestBase):
         content = json.loads(r.get_data())
         self.assertTrue('location' in content['person'])
 
+        # Add new embeddable field to schema
+        invoices['schema']['missing-field'] = {
+            'type': 'objectid',
+            'data_relation': {'resource': 'contacts', 'embeddable': True}
+        }
+
+        # Test that it ignores embeddable field that is missing from document
+        embedded = '{"missing-field": 1}'
+        r = self.test_client.get('%s/%s' % (invoices['url'],
+                                            '?embedded=%s' % embedded))
+        self.assert200(r.status_code)
+        content = json.loads(r.get_data())
+        self.assertFalse('missing-field' in content['_items'][0])
+
     def test_get_default_embedding(self):
         # We need to assign a `person` to our test invoice
         _db = self.connection[MONGO_DBNAME]
@@ -1006,7 +1020,7 @@ class TestGetItem(TestBase):
 
         # IMS needs to see as recent as possible since the test db has just
         # been built
-        header = [("If-Modified-Since", date_to_str(datetime.now()))]
+        header = [("If-Modified-Since", date_to_rfc1123(datetime.now()))]
 
         r = self.test_client.get(self.item_id_url, headers=header)
         self.assert304(r.status_code)
