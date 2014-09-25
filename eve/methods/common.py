@@ -22,16 +22,19 @@ from eve.versioning import resolve_document_version, \
     get_data_version_relation_document, missing_version_field
 
 
-def get_document(resource, **lookup):
+def get_document(resource, concurrency_check, **lookup):
     """ Retrieves and return a single document. Since this function is used by
     the editing methods (POST, PATCH, DELETE), we make sure that the client
     request references the current representation of the document before
-    returning it.
+    returning it. However, this concurrency control may be turned off by
+    internal functions.
 
     :param resource: the name of the resource to which the document belongs to.
+    :param concurrency_check: boolean check for concurrency control
     :param **lookup: document lookup query
 
     .. versionchanged:: 0.5
+       Concurrency control optional for internal functions.
        ETAG are now stored with the document (#369).
 
     .. versionchanged:: 0.0.9
@@ -45,7 +48,7 @@ def get_document(resource, **lookup):
     document = app.data.find_one(resource, None, **lookup)
     if document:
 
-        if not req.if_match and config.IF_MATCH:
+        if not req.if_match and config.IF_MATCH and concurrency_check:
             # we don't allow editing unless the client provides an etag
             # for the document
             abort(403, description=debug_error_message(
@@ -57,7 +60,7 @@ def get_document(resource, **lookup):
         document[config.LAST_UPDATED] = last_updated(document)
         document[config.DATE_CREATED] = date_created(document)
 
-        if req.if_match:
+        if req.if_match and concurrency_check:
             etag = document.get(config.ETAG, document_etag(document))
             if req.if_match != etag:
                 # client and server etags must match, or we don't allow editing
@@ -354,6 +357,7 @@ def build_response_document(
 
     .. versionchanged:: 0.5
        Only compute ETAG if necessary (#369).
+       Add version support (#475).
 
     .. versionadded:: 0.4
     """
@@ -370,11 +374,16 @@ def build_response_document(
 
     # hateoas links
     if config.DOMAIN[resource]['hateoas'] and config.ID_FIELD in document:
-        self_dict = {'self': document_link(resource, document[config.ID_FIELD])}
-        if config.LINKS not in document: 
+        version = None
+        if config.DOMAIN[resource]['versioning'] is True \
+                and request.args.get(config.VERSION_PARAM):
+            version = document[config.VERSION]
+
+        self_dict = {'self': document_link(resource, document[config.ID_FIELD], version)}
+        if config.LINKS not in document:
             document[config.LINKS] = self_dict
         elif 'self' not in document[config.LINKS]:
-            document[config.LINKS].update(self_dict) 
+            document[config.LINKS].update(self_dict)
 
     # add version numbers
     resolve_document_version(document, resource, 'GET', latest_doc)
@@ -514,7 +523,8 @@ def embedded_document(reference, data_relation, field_name):
         subresource = data_relation['resource']
         embedded_doc = app.data.find_one(subresource, None,
                                          **{config.ID_FIELD: reference})
-        resolve_media_files(embedded_doc, subresource)
+        if embedded_doc:
+            resolve_media_files(embedded_doc, subresource)
 
     return embedded_doc
 
@@ -668,10 +678,11 @@ def store_media_files(document, resource, original=None):
             # system, we first need to delete the file being replaced.
             app.media.delete(original[field])
 
-        # store file and update document with file's unique id/filename
-        # also pass in mimetype for use when retrieving the file
-        document[field] = app.media.put(document[field],
-                                        content_type=document[field].mimetype)
+        if document[field]:
+            # store file and update document with file's unique id/filename
+            # also pass in mimetype for use when retrieving the file
+            document[field] = app.media.put(
+                document[field], content_type=document[field].mimetype)
 
 
 def resource_media_fields(document, resource):
@@ -775,11 +786,15 @@ def pre_event(f):
     return decorated
 
 
-def document_link(resource, document_id):
+def document_link(resource, document_id, version=None):
     """ Returns a link to a document endpoint.
 
     :param resource: the resource name.
     :param document_id: the document unique identifier.
+    :param version: the document version. Defaults to None.
+
+    .. versionchanged:: 0.5
+       Add version support (#475).
 
     .. versionchanged:: 0.4
        Use the regex-neutral resource_link function.
@@ -790,8 +805,9 @@ def document_link(resource, document_id):
     .. versionchanged:: 0.0.3
        Now returning a JSON link
     """
+    version_part = '?version=%s' % version if version else ''
     return {'title': '%s' % config.DOMAIN[resource]['item_title'],
-            'href': '%s/%s' % (resource_link(), document_id)}
+            'href': '%s/%s%s' % (resource_link(), document_id, version_part)}
 
 
 def resource_link():

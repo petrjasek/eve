@@ -8,6 +8,56 @@ Version 0.5
 
 Not released yet.
 
+- [fix] Fix validation of read-only fields inside dicts. Closes #474 (Arnau
+  Orriols).
+- [fix] Parent and collection links follow the scheme described in #475 (Jen
+  Montes).
+- [new] Add the current query string to the self link for responses with
+  multiple documents. Closes #464 (Jen Montes).
+- [new] When document versioning is on, add ``?version=<version_num>`` to
+  HATEOAS self links. Also adds pagination links for ``?version=all`` and
+  ``?version=diffs`` requests when the number exceeds the max results.
+  Partially addresses #475 (Jen Montes).
+- [fix] Ignore read-only fields in ``PATCH`` requests when their values aren't
+  changed compared to the stored document. Closes #479.
+- [new] ``QUERY_WHERE`` allows to set the query parameter key for filters.
+  Defaults to ``where``.
+- [new] ``QUERY_SORT`` allows to set the query parameter key for sorting.
+  Defaults to ``sort``.
+- [new] ``QUERY_PAGE`` allows to set the query parameter key for pagination.
+  Defaults to ``page``.
+- [new] ``QUERY_PROJECTION`` allows to set the query parameter key for
+  projections. Defaults to ``projection``.
+- [new] ``QUERY_MAX_RESULTS`` allows to set the query parameter key for max
+  results. Defaults to ``max_results``.
+- [new] ``QUERY_EMBEDDED`` allows to set the query parameter key embedded
+  documents. Defaults to ``embedded``.
+- [new] Fire ``on_fetched`` events for ``version=all`` requests (Jen Montes).
+- [new] Support for CORS ``Access-Control-Expose-Headers`` (Christian Henke).
+- [fix] Allow ``EVE_SETTINGS`` envvar to be used exclusively. Previously,
+  a settings file in the working directory was always required. Closes #461.
+- [fix] exception when trying to set nullable media field to null (Daniel
+  Lytkin)
+- [fix] Add missing ``$options`` and ``$list`` MongoDB operators to the allowed
+  list (Jaroslav Semančík).
+- [fix] Get document when it is missing embedded media. In case you try to
+  embedd a document which has media fields and that document has been deleted,
+  you would get an error (Petr Jašek).
+- [new] GeoJSON support (Juan Madurga).
+- [new] ``put_internal()`` can be used for intenral PUT calls. This method is
+  not rate limited, authentication is not checked and pre-request events are
+  not raised (Kevin Funk).
+- [new] ``patch_internal()`` can be used for intenral PATCH calls. This method
+  is not rate limited, authentication is not checked and pre-request events are
+  not raised (Kevin Funk).
+- [new] ``delete_internal()`` can be used for intenral DELETE calls. This
+  method is not rate limited, authentication is not checked and pre-request
+  events are not raised (Kevin Funk).
+- [fix] fix additional lookup regex in  RESTful Account Management tutorial
+  (Ashley Roach).
+- [new] Comma delimited sort syntax in queries. The MongoDB data layer now also
+  supports queries like ``?sort=lastname,-age``. Addresses #443.
+- [change] XML item, meta and link nodes are now ordered. Closes #441.
 - [fix] ``utils.weak_date`` always returns a RFC-1123 date (Petr Jašek).
 - [change] If-Modified-Since has been disabled on resource (collections)
   endpoints. Closes #334.

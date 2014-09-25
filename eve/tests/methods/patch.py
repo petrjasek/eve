@@ -1,10 +1,12 @@
 from bson import ObjectId
 import simplejson as json
 
-from eve import STATUS_OK, LAST_UPDATED, ID_FIELD, ISSUES, STATUS, ETAG
 from eve.tests import TestBase
 from eve.tests.test_settings import MONGO_DBNAME
 from eve.tests.utils import DummyEvent
+
+from eve import STATUS_OK, LAST_UPDATED, ID_FIELD, ISSUES, STATUS, ETAG
+from eve.methods.patch import patch_internal
 
 
 # @unittest.skip("don't need no freakin' tests!")
@@ -179,6 +181,19 @@ class TestPatch(TestBase):
         r = self.perform_patch_with_post_override('prog', 1)
         self.assert200(r.status_code)
 
+    def test_patch_internal(self):
+        # test that patch_internal is available and working properly.
+        test_field = 'ref'
+        test_value = "9876543210987654321098765"
+        data = {test_field: test_value}
+        with self.app.test_request_context(self.item_id_url):
+            r, _, _, status = patch_internal(
+                self.known_resource, data, concurrency_check=False,
+                **{'_id': self.item_id})
+        db_value = self.compare_patch_with_get(test_field, r)
+        self.assertEqual(db_value, test_value)
+        self.assert200(status)
+
     def perform_patch(self, changes):
         r, status = self.patch(self.item_id_url,
                                data=changes,
@@ -336,6 +351,37 @@ class TestPatch(TestBase):
         self.assertTrue('ref' in r)
         db_value = self.compare_patch_with_get(self.app.config['ETAG'], r)
         self.assertEqual(db_value, r[self.app.config['ETAG']])
+
+    def test_patch_readonly_field_with_previous_document(self):
+        schema = self.domain['contacts']['schema']
+        del(schema['ref']['required'])
+
+        # disable read-only on the field so we can store a value which is
+        # also different form its default value.
+        schema['read_only_field']['readonly'] = False
+        changes = {'read_only_field': 'value'}
+        r = self.perform_patch(changes)
+
+        # resume read-only status for the field
+        self.domain['contacts']['schema']['read_only_field']['readonly'] = True
+
+        # test that if the read-only field is included with the payload and its
+        # value is equal to the one stored with the document, validation
+        # succeeds (#479).
+        etag = r['_etag']
+        r, status = self.patch(self.item_id_url, data=changes,
+                               headers=[('If-Match', etag)])
+        self.assert200(status)
+        self.assertPatchResponse(r, self.item_id)
+
+        # test that if the read-only field is included with the payload and its
+        # value is different from the stored document, validation fails.
+        etag = r['_etag']
+        changes = {'read_only_field': 'another value'}
+        r, status = self.patch(self.item_id_url, data=changes,
+                               headers=[('If-Match', etag)])
+        self.assert422(status)
+        self.assertTrue('is read-only' in r['_issues']['read_only_field'])
 
     def assertPatchResponse(self, response, item_id):
         self.assertTrue(STATUS in response)
