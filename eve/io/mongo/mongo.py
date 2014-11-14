@@ -428,7 +428,7 @@ class Mongo(DataLayer):
         # have changed since the ETag was computed. This would require getting
         # the original document as an argument though.
         try:
-            self.driver.db[datasource].update(filter_, document,
+            self.driver.db[datasource].update(filter_, document, upsert=True,
                                               **self._wc(resource))
         except pymongo.errors.OperationFailure as e:
             # see comment in :func:`insert()`.
