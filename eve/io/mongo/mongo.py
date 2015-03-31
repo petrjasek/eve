@@ -749,6 +749,8 @@ class Mongo(DataLayer):
         # an issue within this module but would force an update to the
         # eve.io.media.MediaStorage interface, possibly breaking compatibility
         # for other database implementations.
+        if not config.MONGO_ENABLE_MULTI_DBS:
+            return 'MONGO'
 
         try:
             resource = request.endpoint[:request.endpoint.index('|')]
